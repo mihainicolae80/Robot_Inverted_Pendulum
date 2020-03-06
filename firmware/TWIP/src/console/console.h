@@ -10,6 +10,10 @@
 #define CONSOLE_H_
 
 #include <stdarg.h>
+#include <stdbool.h>
+
+
+extern volatile bool CONF_streaming_on;
 
 
 /* Initialize the console */

@@ -539,6 +539,20 @@ Tuning Utility</string>
     <item>
      <layout class="QHBoxLayout" name="horizontalLayout_7">
       <item>
+       <widget class="QPushButton" name="btn_set_calib">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Set
+Calibration</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QPushButton" name="btn_read_cal">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Minimum" vsizetype="Preferred">

@@ -3,6 +3,9 @@
 #include <QSerialPortInfo>
 #include <QDebug>
 #include <stdint.h>
+#include <iostream>
+
+
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -40,7 +43,7 @@ void MainWindow::param_chg_p(float value)
 	payload[1] = '=';
 	intvalue = static_cast<int>(value * 1000.0f);
 	memcpy(payload + 2, &intvalue, 4);
-	payload[6] = ';';
+	payload[6] = '\n';
 	write_value(payload);
 }
 
@@ -53,7 +56,7 @@ void MainWindow::param_chg_d(float value)
 	payload[1] = '=';
 	intvalue = static_cast<int>(value * 1000.0f);
 	memcpy(payload + 2, &intvalue, 4);
-	payload[6] = ';';
+	payload[6] = '\n';
 	write_value(payload);
 }
 
@@ -66,7 +69,7 @@ void MainWindow::param_chg_i(float value)
 	payload[1] = '=';
 	intvalue = static_cast<int>(value * 1000.0f) ;
 	memcpy(payload + 2, &intvalue, 4);
-	payload[6] = ';';
+	payload[6] = '\n';
 	write_value(payload);
 }
 
@@ -85,6 +88,7 @@ void MainWindow::write_value(char *payload)
 
 		a = ' ';
 		b = ' ';
+		std::cout << "RX:";
 		do {
 			if (!port.waitForReadyRead(50)) {
 				set_ok(false);
@@ -93,8 +97,10 @@ void MainWindow::write_value(char *payload)
 			}
 			b = a;
 			port.read(&a, 1);
-			//qDebug() << "a=" << a << " b=" << b;
+			std::cout << a;
 		} while (!((a == 'k') && (b == 'o')));
+
+		std::cout << std::endl;
 
 		set_ok(true);
 	} else {
@@ -384,7 +390,7 @@ void MainWindow::on_horizontalSlider_valueChanged(int value)
 	payload[3] = static_cast<char>((intvalue >> 8) & 0xFF);
 	payload[4] = static_cast<char>((intvalue >> 16) & 0xFF);
 	payload[5] = static_cast<char>((intvalue >> 24) & 0xFF);
-	payload[6] = ';';
+	payload[6] = '\n';
 	write_value(payload);
 
 	ui->sb_angle_off->blockSignals(true);
@@ -406,11 +412,11 @@ void MainWindow::on_btn_clear_cal_clicked()
 
 void MainWindow::on_btn_read_cal_clicked()
 {
-	char payload[] = "!c;";
+	char payload[] = "c\n";
 	char payload_rx[22];
 	int i;
 
-	port.write(payload, 7);
+	port.write(payload, 2);
 	if (!port.waitForBytesWritten(100)) {
 		set_ok(false);
 		return;
@@ -429,6 +435,29 @@ void MainWindow::on_btn_read_cal_clicked()
 	for (i = 0; i < 22; i++) {
 		ui->te_cal->append(QString().setNum(static_cast<uint8_t>(payload_rx[i]), 10) + " ");
 	}
+
+	set_ok(true);
+}
+
+void MainWindow::on_btn_set_calib_clicked()
+{
+	char payload[] = "calib\n";
+	char payload_rx[22];
+
+
+	set_ok(false);
+	port.write(payload, 6);
+	if (!port.waitForBytesWritten(100)) {
+		return;
+	}
+
+	if (!port.waitForReadyRead(100)) {
+		port.clear();
+		return;
+	}
+
+	// read data from device
+	port.read(payload_rx, 22);
 
 	set_ok(true);
 }

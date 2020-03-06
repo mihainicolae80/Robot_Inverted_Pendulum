@@ -42,6 +42,9 @@ void CTRL_PID_start(void);
 void CTRL_stop(void);
 
 
+void CTRL_iterate(void);
+
+
 /* Set the terms of the PID controller 
 */
 void CTRL_set_PID_terms(float bp, float bi, float bd);

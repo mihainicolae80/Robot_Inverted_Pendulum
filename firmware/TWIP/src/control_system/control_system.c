@@ -30,6 +30,7 @@
 
 static volatile struct {
 	bool running;
+	bool output_command;
 	float angle_old;
 	float angle_sum;
 	float bp, bi, bd;
@@ -84,8 +85,6 @@ ISR(TIMER2_COMPA_vect)
 	_dev_bno_cal_acc = angle_BNO.cal_acc;
 	///////////////////
 	
-	// TODO: re-add this after testing calib saving to EEPROM
-	/*
 	// refresh calibration if calibration lvl decreases
 	if ((3 != angle_BNO.cal_acc) || (3 != angle_BNO.cal_gyro)) {
 		// disable control system timer
@@ -93,22 +92,30 @@ ISR(TIMER2_COMPA_vect)
 		_timer_enable(false);
 		// enable global interrupts for I2C to work
 		sei();
-		BNO_write_cal();
+		//BNO_write_cal();
+		CTRL_load_calib();
 		cli();
 		// re-enable control system timer
 		_timer_enable(true);
 	}
-	*/
+	
 	
 #if defined (SAFETY_ANGLE)
 	// !!! safety stop !!!
 	if (fabs(angle) > CONF_CTRL_MAX_ANGLE) {
 		// stop routine and indicate error
-		CTRL_stop();
-		IND_set_mode(IND_ERROR);
-		return;
+		//CTRL_stop();
+		//IND_set_mode(IND_ERROR);
+		_pid.output_command = false;
 	}
 #endif
+
+	if (!_pid.output_command) {
+		MOTOR_A_speed(0);
+		MOTOR_B_speed(0);
+		MOTORS_off();
+		return;
+	}
 
 	// pass through PID
 	cmd = (_pid.bp * angle)
@@ -155,6 +162,7 @@ void CTRL_init(void)
 	_pid.system_time = 0;
 	_pid.cal_time = 0;
 	_pid.angle_off = 0;
+	_pid.output_command = true;
 	
 	// Fast PWM Mode, TOP @OCR0A
 	// Disabled output
@@ -229,7 +237,9 @@ void CTRL_set_angle_off(float off)
 }
 
 void CTRL_PID_start(void)
-{	
+{
+	
+	_pid.output_command = true;	
 	// do not start twice
 	if (_pid.running) {
 		return;
@@ -289,7 +299,8 @@ struct calibration_t CTRL_get_calib(void)
 {
 	struct calibration_t calib;
 	
-	
+	// set calibration as valid
+	calib.validation = CALIB_VALIDATION;
 	// PID coeficients
 	calib.bp = _pid.bp;
 	calib.bi = _pid.bi;

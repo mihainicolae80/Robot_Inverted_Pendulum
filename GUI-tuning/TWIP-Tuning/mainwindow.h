@@ -53,6 +53,8 @@ private slots:
 
 	void on_btn_read_cal_clicked();
 
+	void on_btn_set_calib_clicked();
+
 private:
 
 	void init_serial_port(void);

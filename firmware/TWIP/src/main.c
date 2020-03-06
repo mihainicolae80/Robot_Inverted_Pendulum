@@ -51,7 +51,7 @@ int main(void)
 			CTRL_PID_start();
 		}
 		
-		if (CTRL_get_time_elapsed(_time) > 500) {
+		if (CONF_streaming_on && (CTRL_get_time_elapsed(_time) > 500)) {
 			_time = CTRL_get_time();
 			print("============\n\r");
 			print("x=%f\n\r", _dev_bno_x);
