@@ -45,25 +45,25 @@ void IND_set_mode(indicator_mode_t mode)
 	
 	// force reset
 	if (_local.led_on) {
-		_local.last_change = CTRL_get_time() - _local.delay_on_ms;
+		_local.last_change = CTRL_get_time_ms() - _local.delay_on_ms;
 	} else {
-		_local.last_change = CTRL_get_time() - _local.delay_off_ms;
+		_local.last_change = CTRL_get_time_ms() - _local.delay_off_ms;
 	}
 }
 
 void IND_iterate(void)
 {
 	if (_local.led_on) {
-		if (CTRL_get_time_elapsed(_local.last_change) > _local.delay_on_ms) {
+		if (CTRL_get_elapsed_ms(_local.last_change) > _local.delay_on_ms) {
 			_local.led_on = false;
 			DDRB &= ~(1 << PORTB5);
-			_local.last_change = CTRL_get_time();
+			_local.last_change = CTRL_get_time_ms();
 		}
 	} else {
-		if (CTRL_get_time_elapsed(_local.last_change) > _local.delay_off_ms) {
+		if (CTRL_get_elapsed_ms(_local.last_change) > _local.delay_off_ms) {
 			_local.led_on = true;
 			DDRB |= (1 << PORTB5);
-			_local.last_change = CTRL_get_time();
+			_local.last_change = CTRL_get_time_ms();
 		}
 	}
 }

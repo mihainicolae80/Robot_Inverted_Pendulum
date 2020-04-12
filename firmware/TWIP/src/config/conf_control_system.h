@@ -24,18 +24,25 @@
 /* Timer counter TOP value.
  * Control system frequency:
  * CTRL_CLK = F_CLK / CONF_CTRL_CLK / CONF_CTRL_TIMER_CNT
- * Current: CTRL_CLK = 16000000 / 1024 / 156 = ~100Hz
+ * Current: CTRL_CLK = 16000000 / 1024 / 15 = ~1000Hz (1041Hz)
  */
-#define CONF_CTRL_TIMER_CNT (156u)
+#define CONF_CTRL_TIMER_CNT (15u)
 
 /* Maximum angle value (degrees), beyond which 
  * the motor protection is activated 
  */
 #define CONF_CTRL_MAX_ANGLE (35u)
 
-/* Maximum sum of angles, bust be multiplied by 1024 */
+/* Maximum sum of angles*/
 #define CONF_CTRL_PID_MAX_SUM (100.0f)
 
 #define CONF_CTRL_PID_MIN_CMD (90.0f)
+
+/* Minimum time between Control Loop iterations */
+#define CONF_CTRL_PID_LOOP_INTERVAL		(10u)
+
+/* Minimum time between Calibration check iterations */
+#define CONF_CTRL_CALIB_LOOP_INTERVAL	(100u)
+
 
 #endif /* CONF_CONTROL_SYSTEM_H_ */

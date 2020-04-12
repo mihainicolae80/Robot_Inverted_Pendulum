@@ -21,7 +21,8 @@ src/main.d src/main.o: ../src/main.c \
  d:\programs\atmel\ studio\7.0\toolchain\avr8\avr8-gnu-toolchain\avr\include\math.h \
  ../src/indicator/indicator.h ../src/control_system/control_system.h \
  ../src/BNO055/BNO055.h ../src/i2c/i2c.h ../src/motors/motors.h \
- ../src/config/conf_motor.h ../src/timers/timers.h ../src/BNO055/BNO055.h
+ ../src/config/conf_motor.h ../src/timers/timers.h ../src/BNO055/BNO055.h \
+ ../src/EEPROM/eeprom.h
 
 d:\programs\atmel\ studio\7.0\toolchain\avr8\avr8-gnu-toolchain\avr\include\avr\io.h:
 
@@ -80,3 +81,5 @@ d:\programs\atmel\ studio\7.0\toolchain\avr8\avr8-gnu-toolchain\avr\include\math
 ../src/timers/timers.h:
 
 ../src/BNO055/BNO055.h:
+
+../src/EEPROM/eeprom.h:

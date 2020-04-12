@@ -13,15 +13,11 @@
 
 #include "BNO055/BNO055.h"
 
+
 #define CALIB_VALIDATION (0xa5a5a5a5u)
 
-extern float _dev_bno_x;
-extern float _dev_bno_y;
-extern float _dev_bno_z;
-extern uint8_t _dev_bno_cal_gyro;
-extern uint8_t _dev_bno_cal_acc;
 
-struct calibration_t {
+struct CTRL_calib_t {
 	uint32_t validation;
 	// PID terms
 	float bp, bi, bd;
@@ -36,13 +32,13 @@ struct calibration_t {
 void CTRL_init(void);
 
 /* Start the automatic control system */
-void CTRL_PID_start(void);
+void CTRL_start(void);
 
 /* Stop the automatic control system */
 void CTRL_stop(void);
 
-
-void CTRL_iterate(void);
+/* Execute an iteration of the control system */
+void CTRL_handle(void);
 
 
 /* Set the terms of the PID controller 
@@ -57,24 +53,26 @@ void CTRL_set_PID_bd(float bd);
 
 void CTRL_set_angle_off(float off);
 
+
 /* Return last read angle */
 int32_t CTRL_get_last_angle(void);
 
-struct calibration_t CTRL_get_calib(void);
+struct CTRL_calib_t CTRL_get_calib(void);
+
 
 /* Attempt to load the calibration data form EEPROM */
-void CTRL_load_calib(void);
+void CTRL_load_calib_from_EEPROM(void);
 
 
 /* Get current system time in ms.
  * System time is incremented with 20ms at a time.
 */
-uint32_t CTRL_get_time(void);
+uint32_t CTRL_get_time_ms(void);
 
 /* Compute elapsed time since a time in the past 
  * (20 ms resolution)
 */
-uint32_t CTRL_get_time_elapsed(uint32_t past);
+uint32_t CTRL_get_elapsed_ms(uint32_t past);
 
 
 

@@ -201,16 +201,20 @@ typedef enum
 } vector_type_t;
 
 
-// stores the angle value * 32
-// to store the decimal value while using integer representation
+// stores the angle value
 typedef struct {
 	// heading, pitch, roll data
 	float x, y, z;
-	// calibration for: gyroscope, accelerometer, 
+} BNO_angle_t;
+
+
+// stores BNO055 calibration levels
+typedef struct {
+	// calibration for: gyroscope, accelerometer,
 	// magnetometer, system
 	uint8_t cal_gyro, cal_acc;
 	uint8_t cal_mag, cal_sys;
-} BNO_angle_t;
+} BNO_calib_t;
 
 
 /* Read an array of registers */
@@ -219,17 +223,29 @@ int32_t BNO_read_reg(bno055_reg_t reg, uint8_t *data, uint8_t size);
 /* Write a register */
 int32_t BNO_write_reg(bno055_reg_t reg, uint8_t data);
 
+
 /* Start the reading process of the angle values
  * over the I2C interface */
-bool BNO_start_reading(void);
+void BNO_request_angle(I2C_stat_t *handle_read_ptr);
+
+/* Start the reading process of the calibration status
+ * over the I2C interface */
+void BNO_request_calib(I2C_stat_t *handle_read_ptr);
+
+// Return the most recent angle 
+// requested from sensor
+BNO_angle_t BNO_angle(void);
+
+// Return the most recent calibration data 
+// requested from sensor
+BNO_calib_t BNO_calib(void);
 
 // read calibration levels
 void BNO_read_calib_levels(uint8_t *lvl_sys, uint8_t *lvl_gyro, uint8_t *lvl_acc, uint8_t *lvl_mag);
 
 void BNO_read_print_cal(void);
 
-// Return the most recent angle read from sensor
-BNO_angle_t BNO_angle(void);
+
 
 
 

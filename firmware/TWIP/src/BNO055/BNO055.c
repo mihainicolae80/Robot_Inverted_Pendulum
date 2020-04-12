@@ -9,6 +9,7 @@
 #include <util/delay.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <util/atomic.h>
 #include "config/conf_BNO055.h"
 #include "console/console.h"
 #include "indicator/indicator.h"
@@ -27,27 +28,22 @@ static struct {
 } _local;
 
 
-bool BNO_start_reading(void)
+void BNO_request_angle(I2C_stat_t *handle_read_ptr)
 {
-	uint8_t flags;
-	
-	flags = SREG;
-	cli();
-	if (I2C_available_tasks() < 2) {
-		// fail
-		SREG = flags;
-		return false;	
-	}
-	
 	// request heading, pitch, roll
-	I2C_write(CONF_BNO055_ADDRESS, &_addr_angle, 1, &_local._stat_w);
-	I2C_read(CONF_BNO055_ADDRESS, _local.angle_buff, 6, &_local._stat_r);
+	while (!I2C_write(CONF_BNO055_ADDRESS, &_addr_angle, 1, &_local._stat_w))
+		; // retry until successful
+	while (!I2C_read(CONF_BNO055_ADDRESS, _local.angle_buff, 6, handle_read_ptr))
+		; // retry until successful
+}
+
+void BNO_request_calib(I2C_stat_t *handle_read_ptr)
+{
 	// request calibration state
-	I2C_write(CONF_BNO055_ADDRESS, &_addr_calib, 1, &_local._stat_w);
-	I2C_read(CONF_BNO055_ADDRESS, &(_local.calib_state), 1, &_local._stat_r);	
-	
-	SREG = flags;
-	return true;
+	while (!I2C_write(CONF_BNO055_ADDRESS, &_addr_calib, 1, &_local._stat_w))
+		; // retry until successful
+	while (!I2C_read(CONF_BNO055_ADDRESS, &(_local.calib_state), 1, &_local._stat_r))
+		; // retry until successful	
 }
 
 
@@ -82,45 +78,45 @@ void BNO_read_print_cal(void)
 
 BNO_angle_t BNO_angle(void)
 {
-	uint8_t flags;
 	BNO_angle_t angle;
 	float fx, fy, fz;
 	
-	flags = SREG;
-	cli();
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		// convert to angle
+		fx = ((int16_t)_local.angle_buff[0]) | ((int16_t)_local.angle_buff[1] << 8);
+		fy = ((int16_t)_local.angle_buff[2]) | ((int16_t)_local.angle_buff[3] << 8);
+		fz = ((int16_t)_local.angle_buff[4]) | ((int16_t)_local.angle_buff[5] << 8);
+		// to obtain the real angle: angle = float_angle / 16.0
+		// but the angle.x (and .y and .z) will store the angle * 1024
+		// so: raw_angle / 16 * 1024 = raw_angle * 64
+		
+		
+		// real angle (float)
+		angle.x = (fx / 16.0f);
+		angle.y = (fy / 16.0f);
+		angle.z = (fz / 16.0f);
+	}
 	
-	
-	// convert to angle
-	fx = ((int16_t)_local.angle_buff[0]) | ((int16_t)_local.angle_buff[1] << 8);
-	fy = ((int16_t)_local.angle_buff[2]) | ((int16_t)_local.angle_buff[3] << 8);
-	fz = ((int16_t)_local.angle_buff[4]) | ((int16_t)_local.angle_buff[5] << 8);	
-	// to obtain the real angle: angle = float_angle / 16.0
-	// but the angle.x (and .y and .z) will store the angle * 1024
-	// so: raw_angle / 16 * 1024 = raw_angle * 64
-	
-
-	// angle * 1024
-	/*
-	angle.x = (int32_t)(fx * 64);
-	angle.y = (int32_t)(fy * 64);
-	angle.z = (int32_t)(fz * 64);
-	*/
-	
-	// real angle (float)
-	angle.x = (fx / 16.0f);
-	angle.y = (fy / 16.0f);
-	angle.z = (fz / 16.0f);
-	
-	// calibration data
-	angle.cal_sys = (_local.calib_state >> 6u) & 3u;
-	angle.cal_gyro = (_local.calib_state >> 4u) & 3u;
-	angle.cal_acc = (_local.calib_state >> 2u) & 3u;
-	angle.cal_mag = (_local.calib_state) & 3u;
-	
-	SREG = flags;
 	return angle;
 }
 
+
+BNO_calib_t BNO_calib(void)
+{
+	BNO_calib_t calib;
+	
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		// calibration data
+		calib.cal_sys = (_local.calib_state >> 6u) & 3u;
+		calib.cal_gyro = (_local.calib_state >> 4u) & 3u;
+		calib.cal_acc = (_local.calib_state >> 2u) & 3u;
+		calib.cal_mag = (_local.calib_state) & 3u;	
+	}
+	
+	return calib;
+}
 
 
 int32_t BNO_read_reg(bno055_reg_t reg, uint8_t *data, uint8_t size)
@@ -301,10 +297,10 @@ void BNO_print_calib_on_change(void)
 	static uint32_t calib_time = 0;
 	
 	// read calibration status
-	if (CTRL_get_time_elapsed(calib_time) > 100) {
+	if (CTRL_get_elapsed_ms(calib_time) > 100) {
 		uint8_t lvl_sys, lvl_gyro, lvl_acc, lvl_mag;
 		
-		calib_time = CTRL_get_time();
+		calib_time = CTRL_get_time_ms();
 		BNO_read_calib_levels(&lvl_sys, &lvl_gyro, &lvl_acc, &lvl_mag);
 		
 		if (lvl_sys != lvl_sys_old) {
@@ -332,11 +328,12 @@ void BNO_print_data(void)
 	BNO_angle_t angle;
 	uint8_t lvl_sys, lvl_gyro, lvl_acc, lvl_mag;
 	
-	if (CTRL_get_time_elapsed(_time) > 300) {
-		_time = CTRL_get_time();
+	
+	if (CTRL_get_elapsed_ms(_time) > 300) {
+		_time = CTRL_get_time_ms();
 		
 		// request data
-		BNO_start_reading();
+		BNO_request_angle(&(_local._stat_r));
 		// wait for data
 		while (I2C_IN_PROGRESS == _local._stat_r)
 		;

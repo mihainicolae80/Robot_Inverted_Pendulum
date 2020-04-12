@@ -13,9 +13,6 @@
 #include <stdbool.h>
 
 
-extern volatile bool CONF_streaming_on;
-
-
 /* Initialize the console */
 void CONS_init(void);
 

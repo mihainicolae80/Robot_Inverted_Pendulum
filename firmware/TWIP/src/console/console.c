@@ -28,9 +28,6 @@ void _handle_cmd(void);
 static void _cmd_calib(void);
 
 
-bool volatile CONF_streaming_on = true;
-
-
 static struct {
 	uint8_t data[CONS_CMD_LINE_SIZE];
 	uint8_t index;
@@ -158,9 +155,9 @@ void _handle_cmd(void)
 	} else if ('c' == _cmd.data[0]){
 		BNO_read_print_cal();
 	} else if (_strcmp((char*)_cmd.data, "stream_on", -1)) {
-		CONF_streaming_on = true;
+		//CONF_streaming_on = true;
 	} else if (_strcmp((char*)_cmd.data, "stream_off", -1)) {
-		CONF_streaming_on = false;
+		//CONF_streaming_on = false;
 		UART_write_str("streaming off!\r\n");
 	} else if (_strcmp((char*)_cmd.data, "echo", 4)) {
 		UART_write_str("echo");
@@ -174,7 +171,7 @@ void _handle_cmd(void)
 
 void _cmd_calib(void)
 {
-	struct calibration_t calib;
+	struct CTRL_calib_t calib;
 	
 	calib = CTRL_get_calib();
 	

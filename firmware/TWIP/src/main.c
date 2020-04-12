@@ -9,7 +9,7 @@
 #include "control_system/control_system.h"
 #include "motors/motors.h"
 #include "BNO055/BNO055.h"
-
+#include "EEPROM/eeprom.h"
 
 
 int main(void)
@@ -23,42 +23,38 @@ int main(void)
 	CONS_init();
 	CTRL_init();
 	
-	// init default ctrl system parameters
+	// init Control System parameters
 	CTRL_set_PID_terms(55.0f, 3, 9.0f);
 	CTRL_set_angle_off(-3.6f);
 	
 	// enable global interrupts
 	sei();
 	
-	// load calibration from EEPROM
-	CTRL_load_calib();
-	
+	// init sensor BNO055
 	BNO_init(true);
-	CTRL_PID_start();
+	// try to copy calibration data
+	// from EEPROM to BNO055 sensor
+	CTRL_load_calib_from_EEPROM();
+	
 	// enable button
 	DDRB &= ~(1 << PORTB7);
 	
-	// announce STARTED
+	// LED indicate system Running
 	IND_set_mode(IND_RUNNING);
 	
+	// start Control System
+	CTRL_start();
+	
 	// main loop
-	uint32_t _time = CTRL_get_time();
 	while (1) {
+		// handle Console Commands
 		CONS_handle();
+		// handle Control System
+		CTRL_handle();
 		// on button press, re-enable system
 		if (0 == (PINB & (1 << PORTB7))) {
 			IND_set_mode(IND_RUNNING);
-			CTRL_PID_start();
-		}
-		
-		if (CONF_streaming_on && (CTRL_get_time_elapsed(_time) > 500)) {
-			_time = CTRL_get_time();
-			print("============\n\r");
-			print("x=%f\n\r", _dev_bno_x);
-			print("y=%f\n\r", _dev_bno_y);
-			print("z=%f\n\r", _dev_bno_z);
-			print("c_g=%d\n\r", _dev_bno_cal_gyro);
-			print("c_a=%d\n\r", _dev_bno_cal_acc);
+			CTRL_start();
 		}
 	}
 

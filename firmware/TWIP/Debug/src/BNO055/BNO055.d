@@ -17,6 +17,7 @@ src/BNO055/BNO055.d src/BNO055/BNO055.o: ../src/BNO055/BNO055.c \
  d:\programs\atmel\ studio\7.0\toolchain\avr8\avr8-gnu-toolchain\avr\include\avr\fuse.h \
  d:\programs\atmel\ studio\7.0\toolchain\avr8\avr8-gnu-toolchain\avr\include\avr\lock.h \
  d:\programs\atmel\ studio\7.0\toolchain\avr8\avr8-gnu-toolchain\avr\include\avr\interrupt.h \
+ d:\programs\atmel\ studio\7.0\toolchain\avr8\avr8-gnu-toolchain\avr\include\util\atomic.h \
  ../src/config/conf_BNO055.h ../src/console/console.h \
  d:\programs\atmel\ studio\7.0\toolchain\avr8\avr8-gnu-toolchain\lib\gcc\avr\5.4.0\include\stdarg.h \
  ../src/indicator/indicator.h ../src/uart/uart.h \
@@ -59,6 +60,8 @@ d:\programs\atmel\ studio\7.0\toolchain\avr8\avr8-gnu-toolchain\avr\include\avr\
 d:\programs\atmel\ studio\7.0\toolchain\avr8\avr8-gnu-toolchain\avr\include\avr\lock.h:
 
 d:\programs\atmel\ studio\7.0\toolchain\avr8\avr8-gnu-toolchain\avr\include\avr\interrupt.h:
+
+d:\programs\atmel\ studio\7.0\toolchain\avr8\avr8-gnu-toolchain\avr\include\util\atomic.h:
 
 ../src/config/conf_BNO055.h:
 

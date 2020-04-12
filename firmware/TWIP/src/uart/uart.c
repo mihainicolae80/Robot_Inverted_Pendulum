@@ -14,10 +14,10 @@
 #include <avr/common.h>
 
 
+
 static struct {
 	volatile struct circ_buff_t buff_in, buff_out;
 } _local;
-
 
 
 // Called @data RX
@@ -79,7 +79,6 @@ void UART_write(uint8_t byte)
 		_delay_us(27);
 		cli();
 	}
-
 
 	// add data to TX buffer
 	circ_buff_put((struct circ_buff_t*)&(_local.buff_out), byte);

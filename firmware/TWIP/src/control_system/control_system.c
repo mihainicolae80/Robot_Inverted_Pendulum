@@ -30,139 +30,48 @@
 
 static volatile struct {
 	bool running;
-	bool output_command;
+	bool motor_control;
 	float angle_old;
 	float angle_sum;
 	float bp, bi, bd;
 	float angle_off;
 	uint32_t system_time;
 	uint32_t cal_time;
+	// status for I2C operation
+	I2C_stat_t read_handle_angle;
+	I2C_stat_t read_handle_calib;
 } _pid;
 
-
-float _dev_bno_x;
-float _dev_bno_y;
-float _dev_bno_z;
-uint8_t _dev_bno_cal_gyro;
-uint8_t _dev_bno_cal_acc;
 
 
 
 /* Set timer source or no source */
-static inline void _timer_enable(bool enable)
+static inline void _timer_set_enable(bool enable)
 {
 	// Fast PWM Mode, TOP @OCR0A
-	// Prescaled 1/1024
+	// Prescaler 1/1024
 	TCCR2B = (uint8_t)enable * ((1u << WGM02) | (CONF_CTRL_CLK << CS20));
 }
 
 
 // Control system routine
 ISR(TIMER2_COMPA_vect)
-{
-	BNO_angle_t angle_BNO;
-	float angle;
-	float cmd;
-	
-	// add 10ms
-	_pid.system_time += 10;
-	IND_iterate();	
-	if (!_pid.running) {
-		return;
-	}
-	
-	// current angle
-	angle_BNO = BNO_angle();
-	angle = angle_BNO.z + _pid.angle_off;
-	// start new readings
-	BNO_start_reading();
-	
-	////// DEV //////////
-	_dev_bno_x = angle_BNO.x;
-	_dev_bno_y = angle_BNO.y;
-	_dev_bno_z = angle_BNO.z;
-	_dev_bno_cal_gyro = angle_BNO.cal_gyro;
-	_dev_bno_cal_acc = angle_BNO.cal_acc;
-	///////////////////
-	
-	// refresh calibration if calibration lvl decreases
-	if ((3 != angle_BNO.cal_acc) || (3 != angle_BNO.cal_gyro)) {
-		// disable control system timer
-		// (prevent this interrupt)
-		_timer_enable(false);
-		// enable global interrupts for I2C to work
-		sei();
-		//BNO_write_cal();
-		CTRL_load_calib();
-		cli();
-		// re-enable control system timer
-		_timer_enable(true);
-	}
-	
-	
-#if defined (SAFETY_ANGLE)
-	// !!! safety stop !!!
-	if (fabs(angle) > CONF_CTRL_MAX_ANGLE) {
-		// stop routine and indicate error
-		//CTRL_stop();
-		//IND_set_mode(IND_ERROR);
-		_pid.output_command = false;
-	}
-#endif
-
-	if (!_pid.output_command) {
-		MOTOR_A_speed(0);
-		MOTOR_B_speed(0);
-		MOTORS_off();
-		return;
-	}
-
-	// pass through PID
-	cmd = (_pid.bp * angle)
-		+  (_pid.bd * (_pid.angle_old - angle))
-		+  (_pid.bi * _pid.angle_sum);
-	// update PID
-	_pid.angle_old = angle;
-	// integral sum
-	_pid.angle_sum += angle;
-	// cap integral sum
-	if (_pid.angle_sum > CONF_CTRL_PID_MAX_SUM) {
-		_pid.angle_sum = CONF_CTRL_PID_MAX_SUM;
-	} else if (_pid.angle_sum < -CONF_CTRL_PID_MAX_SUM) {
-		_pid.angle_sum = -CONF_CTRL_PID_MAX_SUM;
-	}
-	
-	
-	// zero angle
-	if (fabs(cmd) < CONF_CTRL_PID_MIN_CMD) {
-		cmd = 0;
-		// turn off PWM
-		DDRB &= ~((1 << PORTB0) | (1 << PORTB1));
-	} else {
-		// enable PWM
-		DDRB |= (1 << PORTB0) | (1 << PORTB1);
-		// cap between -255 and 255
-		if (cmd > 255.0f) {
-			cmd = 255.0f;
-		} else if (cmd < -255.0f) {
-			cmd = -255.0f;
-		}
-	}
-		
-	// send motor commands
-	MOTOR_A_speed((int16_t)cmd);
-	MOTOR_B_speed((int16_t)cmd);
+{	
+	// add 10ms to system time
+	_pid.system_time += 1;
+	// update indicator LED
+	IND_iterate();
 }
 
 void CTRL_init(void)
-{
-	struct calibration_t calib;
-	
-	_pid.running = false;
+{	
 	_pid.system_time = 0;
 	_pid.cal_time = 0;
 	_pid.angle_off = 0;
-	_pid.output_command = true;
+	_pid.motor_control = false;
+	// init I2C read handler
+	_pid.read_handle_angle = I2C_ADDRESS_NACK;
+	_pid.read_handle_calib = I2C_ADDRESS_NACK;
 	
 	// Fast PWM Mode, TOP @OCR0A
 	// Disabled output
@@ -175,22 +84,12 @@ void CTRL_init(void)
 	TCNT2 = 0;
 		
 	// Fast PWM Mode, TOP @OCR0A
-	// Prescaled 1/1024
+	// Prescaler 1/1024
 	//TCCR2B = (1u << WGM02) | (CONF_CTRL_CLK << CS20);
-	_timer_enable(true);
+	_timer_set_enable(true);
 	
 	// enable OCRA compare interrupt
 	TIMSK2 |= (1 << OCIE2A);
-	
-	// restore calibration from EEPROM
-	EEPROM_read_array(0, (uint8_t *)&calib, sizeof(calib));
-	if (CALIB_VALIDATION == calib.validation) {
-		_pid.bp = calib.bp;
-		_pid.bi = calib.bi;
-		_pid.bd = calib.bd;
-		_pid.angle_off = calib.angle_off;
-		
-	}
 }
 
 void CTRL_set_PID_terms(float bp, float bi, float bd)
@@ -221,7 +120,6 @@ void CTRL_set_PID_bi(float bi)
 
 void CTRL_set_PID_bd(float bd)
 {
-	
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 	{
 		_pid.bd = bd;
@@ -236,53 +134,169 @@ void CTRL_set_angle_off(float off)
 	}
 }
 
-void CTRL_PID_start(void)
+void CTRL_start(void)
 {
-	
-	_pid.output_command = true;	
-	// do not start twice
-	if (_pid.running) {
-		return;
-	}
-	
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 	{
-		_pid.running = true;
-		
-		// request vector data from BNO055 sensor
-		BNO_start_reading();
-		
-		// Start motors
-		MOTOR_A_speed(0);
-		MOTOR_B_speed(0);
-		MOTORS_on();
+		if (!_pid.motor_control) {
+			
+			// wait for previous data requests (angle, calib)
+			while (I2C_IN_PROGRESS == _pid.read_handle_angle)
+				; // wait
+			while (I2C_IN_PROGRESS == _pid.read_handle_calib)
+				; // wait
+			
+			// request new data (angle, calibration)
+			BNO_request_angle(&(_pid.read_handle_angle));
+			BNO_request_calib(&(_pid.read_handle_calib));
+			
+			// Start motors
+			MOTOR_A_speed(0);
+			MOTOR_B_speed(0);
+			MOTORS_on();	
+			
+			// enable control system output to motors
+			_pid.motor_control = true;
+		}
 	}
 }
 
 
 void CTRL_stop(void)
 {
-	uint8_t flags = SREG;
-	cli();
-	
-	// turn off the motors
-	MOTORS_off();
-	_pid.running = false;
-	
-	SREG = flags;
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		// turn off the motors
+		MOTORS_off();
+		// disable motor control
+		_pid.motor_control = false;
+		// Indicator LED to ERROR
+		IND_set_mode(IND_ERROR);
+	}
 }
 
-uint32_t CTRL_get_time(void)
+
+static inline void _PID_handle(float angle)
+{
+	float cmd;
+	
+	
+#if defined (SAFETY_ANGLE)
+	// !!! safety stop !!!
+	if (fabs(angle) > CONF_CTRL_MAX_ANGLE) {
+		// stop routine and indicate error
+		CTRL_stop();
+	}
+#endif
+
+	// motor control is disabled
+	if (!_pid.motor_control) {
+		MOTOR_A_speed(0);
+		MOTOR_B_speed(0);
+		MOTORS_off();
+		return;
+	}
+
+	// pass through PID
+	cmd =  (_pid.bp * angle)
+		+  (_pid.bd * (_pid.angle_old - angle))
+		+  (_pid.bi * _pid.angle_sum);
+	// update PID
+	_pid.angle_old = angle;
+	// integral sum
+	_pid.angle_sum += angle;
+	// cap integral sum
+	if (_pid.angle_sum > CONF_CTRL_PID_MAX_SUM) {
+		_pid.angle_sum = CONF_CTRL_PID_MAX_SUM;
+	}
+	else if (_pid.angle_sum < -CONF_CTRL_PID_MAX_SUM) {
+		_pid.angle_sum = -CONF_CTRL_PID_MAX_SUM;
+	}
+	
+	// zero angle
+	if (fabs(cmd) < CONF_CTRL_PID_MIN_CMD) {
+		cmd = 0;
+		// turn off PWM
+		DDRB &= ~((1 << PORTB0) | (1 << PORTB1));
+		} else {
+		// enable PWM
+		DDRB |= (1 << PORTB0) | (1 << PORTB1);
+		// cap between -255 and 255
+		if (cmd > 255.0f) {
+			cmd = 255.0f;
+		}
+		else if (cmd < -255.0f) {
+			cmd = -255.0f;
+		}
+	}
+	
+	// send motor commands
+	MOTOR_A_speed((int16_t)cmd);
+	MOTOR_B_speed((int16_t)cmd);
+}
+
+void CTRL_handle(void)
+{
+	static uint32_t timer_PID = 0;
+	static uint32_t timer_calib = 0;
+	BNO_angle_t BNO_angle_data;
+	BNO_calib_t BNO_calib_data;
+	float angle;
+	
+	
+	// handle once every 10ms
+	if (CTRL_get_elapsed_ms(timer_PID) > CONF_CTRL_PID_LOOP_INTERVAL) {
+		timer_PID = CTRL_get_time_ms();
+		
+		///////// {   PID   } //////////
+		// if angle data not ready
+		while((I2C_IN_PROGRESS == _pid.read_handle_angle))
+			; // wait
+		
+		// current angle + calibration offset
+		BNO_angle_data = BNO_angle();
+		angle = BNO_angle_data.z + _pid.angle_off;
+		// request new reading
+		BNO_request_angle(&(_pid.read_handle_angle));
+		// run PID and command motors
+		_PID_handle(angle);
+	}
+	
+	
+	// TOOD: add calib streaming condition
+	////////// {   Calibration Levels Streaming   } /////
+	if (false && (CTRL_get_elapsed_ms(timer_calib) > CONF_CTRL_CALIB_LOOP_INTERVAL)) {
+		// reset timer
+		timer_calib = CTRL_get_time_ms();
+		// wait for data to be ready
+		while (I2C_IN_PROGRESS == _pid.read_handle_calib)
+			; // wait
+		
+		// get latest calibration data
+		BNO_calib_data = BNO_calib();
+		// request new data for next iteration
+		BNO_request_calib(&(_pid.read_handle_calib));
+		
+		// re-apply calibration from EEPROM
+		// if sensor calibration levels decreased
+		if ((3 != BNO_calib_data.cal_acc) || (3 != BNO_calib_data.cal_gyro)) {
+			// attempt to load calibration from EEPROM
+			CTRL_load_calib_from_EEPROM();
+		}
+		
+		// TODO: send calibration data on UART
+	}
+}
+
+uint32_t CTRL_get_time_ms(void)
 {
 	return _pid.system_time;
 }
 
 
-uint32_t CTRL_get_time_elapsed(uint32_t past)
-{
-	uint32_t present;
-	
-	present = _pid.system_time;
+uint32_t CTRL_get_elapsed_ms(uint32_t past)
+{	
+	uint32_t present = _pid.system_time;
 	
 	return (past < present) 
 		 ? (present - past) 
@@ -295,9 +309,9 @@ int32_t CTRL_get_last_angle(void)
 	return _pid.angle_old;
 }
 
-struct calibration_t CTRL_get_calib(void)
+struct CTRL_calib_t CTRL_get_calib(void)
 {
-	struct calibration_t calib;
+	struct CTRL_calib_t calib;
 	
 	// set calibration as valid
 	calib.validation = CALIB_VALIDATION;
@@ -317,16 +331,16 @@ struct calibration_t CTRL_get_calib(void)
 	return calib;
 }
 
-void CTRL_load_calib(void)
+void CTRL_load_calib_from_EEPROM(void)
 {
-	struct calibration_t calib;
+	struct CTRL_calib_t calib;
 	
 	// load from EEPROM
 	EEPROM_read_array(0, (uint8_t *)&calib, sizeof(calib));
 	
-	// check if data corrupter
+	// Check data VALID
 	if (CALIB_VALIDATION == calib.validation) {
-		// pid parameters
+		// set PID parameters
 		_pid.bp = calib.bp;
 		_pid.bi = calib.bi;
 		_pid.bd = calib.bd;
